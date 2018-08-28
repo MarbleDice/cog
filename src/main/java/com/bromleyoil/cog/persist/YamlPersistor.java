@@ -18,6 +18,16 @@ import com.bromleyoil.cog.persist.annotation.ReferencedBy;
 
 public class YamlPersistor {
 
+
+
+	public <T> T construct(String handle, Class<T> clazz) {
+		return null;
+	}
+
+	public Map<String, Object> compose(String handle) {
+		return null;
+	}
+
 	public static String present(Object object) {
 		Yaml yaml = new Yaml();
 		return yaml.dump(represent(object));

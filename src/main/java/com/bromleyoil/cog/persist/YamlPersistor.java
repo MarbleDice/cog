@@ -1,5 +1,8 @@
 package com.bromleyoil.cog.persist;
 import java.beans.PropertyDescriptor;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -18,14 +21,34 @@ import com.bromleyoil.cog.persist.annotation.ReferencedBy;
 
 public class YamlPersistor {
 
+	public <T> T construct(Handle handle, Class<T> clazz) {
+		return construct(compose(handle), clazz);
+	}
 
-
-	public <T> T construct(String handle, Class<T> clazz) {
+	protected <T> T construct(Map<String, Object> map, Class<T> clazz) {
+		for (PropertyDescriptor property : getProperties(clazz)) {
+			System.out.println("Constructin " + property.getName());
+		}
 		return null;
 	}
 
-	public Map<String, Object> compose(String handle) {
-		return null;
+	@SuppressWarnings("unchecked")
+	public Map<String, Object> compose(Handle handle) {
+		InputStream inputStream = getClass().getClassLoader().getResourceAsStream(handle.getFilename());
+
+		try (InputStreamReader reader = new InputStreamReader(inputStream)) {
+			Yaml yaml = new Yaml();
+			for (Object document : yaml.loadAll(reader)) {
+				Map<String, Object> map = (Map<String, Object>) document;
+				if (handle.getId().equals(map.get("id"))) {
+					return map;
+				}
+			}
+		} catch (IOException e) {
+			throw new LoadException("Unable to open " + handle.getFilename(), e);
+		}
+
+		throw new LoadException("Unable to find " + handle);
 	}
 
 	public static String present(Object object) {
@@ -47,19 +70,11 @@ public class YamlPersistor {
 	}
 
 	protected static Map<String, Object> representBean(Object bean) {
-		// Instantiate a comparator for ordering the represented properties
-		Comparator<PropertyDescriptor> comparator = new PropertyOrderComparator(
-				bean.getClass().getAnnotation(PropertyOrder.class));
-
-		// Determine the properties to represent
-		Set<PropertyDescriptor> properties = Stream.of(PropertyUtils.getPropertyDescriptors(bean))
-				.filter(pd -> pd.getReadMethod() != null && pd.getWriteMethod() != null)
-				.collect(Collectors.toCollection(() -> new TreeSet<PropertyDescriptor>(comparator)));
-
 		// Use a linked hash map to preserve insertion order
 		Map<String, Object> map = new LinkedHashMap<>();
+
 		// Represent the properties
-		for (PropertyDescriptor property : properties) {
+		for (PropertyDescriptor property : getProperties(bean.getClass())) {
 			if (property.getReadMethod() == null || property.getWriteMethod() == null) {
 				continue;
 			}
@@ -93,5 +108,16 @@ public class YamlPersistor {
 		return map.entrySet().stream().collect(Collectors.toMap(
 				entry -> entry.getKey(),
 				entry -> represent(entry.getValue())));
+	}
+
+	protected static Set<PropertyDescriptor> getProperties(Class<?> clazz) {
+		// Instantiate a comparator for ordering the represented properties
+		Comparator<PropertyDescriptor> comparator = new PropertyOrderComparator(
+				clazz.getAnnotation(PropertyOrder.class));
+
+		// Determine the properties to represent
+		return Stream.of(PropertyUtils.getPropertyDescriptors(clazz))
+				.filter(pd -> pd.getReadMethod() != null && pd.getWriteMethod() != null)
+				.collect(Collectors.toCollection(() -> new TreeSet<PropertyDescriptor>(comparator)));
 	}
 }

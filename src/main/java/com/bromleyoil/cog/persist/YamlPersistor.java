@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -26,10 +27,57 @@ public class YamlPersistor {
 	}
 
 	protected <T> T construct(Map<String, Object> map, Class<T> clazz) {
-		for (PropertyDescriptor property : getProperties(clazz)) {
-			System.out.println("Constructin " + property.getName());
+		T bean;
+		try {
+			bean = clazz.newInstance();
+		} catch (InstantiationException | IllegalAccessException e1) {
+			throw new LoadException("Cannot instantiate " + clazz.getSimpleName());
 		}
+
+		for (PropertyDescriptor property : getProperties(clazz)) {
+			try {
+				PropertyUtils.setProperty(bean, property.getName(),
+						constructProperty(property, map.get(property.getName())));
+			} catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+				throw new LoadException(String.format("Cannot set property %s.%s with value %s", clazz.getSimpleName(),
+						property.getName(), map.get(property.getName())));
+			}
+		}
+
+		return bean;
+	}
+
+	protected Object constructProperty(PropertyDescriptor property, Object data) {
+		System.out.println("Constructin " + property.getName());
+		if (data instanceof String) {
+			// Property is a scalar
+			return constructScalar(property, (String) data);
+		} else if (List.class.isAssignableFrom(property.getPropertyType())) {
+			// Property is a list
+		} else if (Map.class.isAssignableFrom(property.getPropertyType())) {
+			// Property is a map
+
+		} else {
+			// Property is a bean
+			return construct((Map<String, Object>) data, property.getPropertyType());
+		}
+
 		return null;
+	}
+
+	protected Object constructScalar(PropertyDescriptor property, String scalar) {
+		if (String.class.isAssignableFrom(property.getPropertyType())) {
+			return scalar;
+		} else if (int.class.isAssignableFrom(property.getPropertyType())
+				|| Integer.class.isAssignableFrom(property.getPropertyType())) {
+			return mapScalarWithNull(scalar, Integer::valueOf);
+		} else {
+			throw new LoadException("Unable to construct type: " + property.getPropertyType());
+		}
+	}
+
+	protected <T> T mapScalarWithNull(String scalar, Function<String, T> mapper) {
+		return scalar == null || "null".equals(scalar) ? null : mapper.apply(scalar);
 	}
 
 	@SuppressWarnings("unchecked")

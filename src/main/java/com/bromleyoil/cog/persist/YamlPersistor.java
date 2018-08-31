@@ -4,7 +4,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +41,7 @@ public class YamlPersistor {
 		for (PropertyDescriptor property : getProperties(clazz)) {
 			try {
 				PropertyUtils.setProperty(bean, property.getName(),
-						constructProperty(property, map.get(property.getName())));
+						constructProperty(map.get(property.getName()), property));
 			} catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
 				throw new LoadException(String.format("Cannot set property %s.%s with value %s", clazz.getSimpleName(),
 						property.getName(), map.get(property.getName())));
@@ -47,25 +51,39 @@ public class YamlPersistor {
 		return bean;
 	}
 
-	protected Object constructProperty(PropertyDescriptor property, Object data) {
-		System.out.println("Constructin " + property.getName());
+	@SuppressWarnings("unchecked")
+	protected Object constructProperty(Object data, PropertyDescriptor property) {
 		if (data instanceof String) {
 			// Property is a scalar
-			return constructScalar(property, (String) data);
+			return constructScalar((String) data, property);
 		} else if (List.class.isAssignableFrom(property.getPropertyType())) {
 			// Property is a list
+			Class<?>[] types = getGenericReturnTypes(property.getReadMethod());
+			return constructList((List<Object>) data, types[0]);
 		} else if (Map.class.isAssignableFrom(property.getPropertyType())) {
 			// Property is a map
-
+			Class<?>[] types = getGenericReturnTypes(property.getReadMethod());
+			return constructMap((Map<String, Object>) data, types[0], types[1]);
 		} else {
 			// Property is a bean
 			return construct((Map<String, Object>) data, property.getPropertyType());
 		}
-
-		return null;
 	}
 
-	protected Object constructScalar(PropertyDescriptor property, String scalar) {
+	protected static Class<?>[] getGenericReturnTypes(Method method) {
+		if (method.getGenericReturnType() instanceof ParameterizedType) {
+			ParameterizedType paramType = (ParameterizedType) method.getGenericReturnType();
+			return Stream.of(paramType.getActualTypeArguments()).map(x -> (Class<?>) x).toArray(Class<?>[]::new);
+		}
+
+		return new Class<?>[0];
+	}
+
+	protected static String info(Object obj) {
+		return obj == null ? "null" : "[" + obj.getClass() + " " + obj.toString() + "]";
+	}
+
+	protected Object constructScalar(String scalar, PropertyDescriptor property) {
 		if (String.class.isAssignableFrom(property.getPropertyType())) {
 			return scalar;
 		} else if (int.class.isAssignableFrom(property.getPropertyType())
@@ -78,6 +96,22 @@ public class YamlPersistor {
 
 	protected <T> T mapScalarWithNull(String scalar, Function<String, T> mapper) {
 		return scalar == null || "null".equals(scalar) ? null : mapper.apply(scalar);
+	}
+
+	protected <T> List<T> constructList(List<Object> data, Class<T> elementType) {
+		List<T> value = new ArrayList<>();
+
+		for (Object object : data) {
+
+		}
+
+		return value;
+	}
+
+	protected <K, V> Map<K, V> constructMap(Map<String, Object> data, Class<K> keyType, Class<V> valueType) {
+		Map<K, V> value = new HashMap<>();
+
+		return value;
 	}
 
 	@SuppressWarnings("unchecked")

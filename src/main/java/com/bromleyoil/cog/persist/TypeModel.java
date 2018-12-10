@@ -95,7 +95,7 @@ public class TypeModel {
 		return sb.toString();
 	}
 
-	protected Set<PropertyModel> getProperties() {
+	public Set<PropertyModel> getProperties() {
 		return properties;
 	}
 

@@ -16,6 +16,11 @@ public class PropertyModel {
 		this.typeModel = TypeModel.of(propertyDescriptor.getReadMethod().getGenericReturnType());
 	}
 
+	@Override
+	public String toString() {
+		return getName();
+	}
+
 	public String getName() {
 		return propertyDescriptor.getName();
 	}

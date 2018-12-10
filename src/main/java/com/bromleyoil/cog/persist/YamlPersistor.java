@@ -1,15 +1,14 @@
 package com.bromleyoil.cog.persist;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.commons.beanutils.PropertyUtils;
@@ -20,90 +19,144 @@ public class YamlPersistor {
 	private static Logger log = new Logger();
 
 	public <T> T construct(Handle handle, Class<T> clazz) {
-		return constructBean(compose(handle), TypeModel.of(clazz), clazz);
-	}
+		ConstructionContext context = new ConstructionContext();
 
-	protected <T> T constructBean(Map<String, Object> data, TypeModel type, Class<T> clazz) {
-		log.info("Constructing %s", clazz.getSimpleName());
+		@SuppressWarnings("unchecked")
+		T bean = (T) context.constructBean(compose(handle), TypeModel.of(clazz));
 
-		T bean;
-		try {
-			bean = clazz.newInstance();
-		} catch (InstantiationException | IllegalAccessException e1) {
-			throw new LoadException("Cannot instantiate " + clazz.getSimpleName());
-		}
-
-		for (PropertyModel property : type.getProperties()) {
-			if (property.isReferencedBy()) {
-
-			} else {
-				try {
-					PropertyUtils.setProperty(bean, property.getName(),
-							construct(data.get(property.getName()), property.getType()));
-				} catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-					throw new LoadException(String.format("Cannot set property %s.%s with value %s", type,
-							property.getName(), data.get(property.getName())));
-				}
-			}
-		}
+		context.applyReferences();
 
 		return bean;
 	}
 
-	@SuppressWarnings("unchecked")
-	protected Object construct(Object data, TypeModel type) {
-		if (type.isScalar()) {
-			// Property is a scalar
-			return constructScalar(data, type.getMainClass());
-		} else if (type.isList()) {
-			// Property is a list
-			return constructList((List<Object>) data, type);
-		} else if (type.isMap()) {
-			// Property is a map
-			return constructMap((Map<String, Object>) data, type);
-		} else {
-			// Property is a bean
-			// TODO referenced by
-			return constructBean((Map<String, Object>) data, type, type.getMainClass());
-		}
-	}
+	private class ConstructionContext {
 
-	protected Object constructScalar(Object data, Class<?> clazz) {
-		log.info("Constructing %s from %s", clazz.getSimpleName(), data.getClass().getSimpleName());
-		if (String.class.isAssignableFrom(clazz)) {
-			return data;
-		} else if (int.class.isAssignableFrom(clazz) || Integer.class.isAssignableFrom(clazz)) {
-			return data;
-		} else {
-			throw new LoadException("Unable to construct type: " + clazz);
-		}
-	}
+		private Map<Class<?>, List<Object>> beanRepository = new HashMap<>();
+		private List<Reference> references = new ArrayList<>();
 
-	protected <T> T mapScalarWithNull(Object scalar, Function<Object, T> mapper) {
-		return scalar == null || "null".equals(scalar) ? null : mapper.apply(scalar);
-	}
+		protected Object constructBean(Map<Object, Object> data, TypeModel type) {
+			log.info("Constructing %s", type);
 
-	@SuppressWarnings("unchecked")
-	protected <T> List<T> constructList(List<Object> data, TypeModel type) {
-		log.info("Constructing %s", type);
-		List<T> value = new ArrayList<>();
+			// Construct the bean
+			Object bean;
+			try {
+				bean = type.getMainClass().newInstance();
+			} catch (InstantiationException | IllegalAccessException e1) {
+				throw new LoadException("Cannot instantiate " + type);
+			}
 
-		for (Object datum : data) {
-			value.add((T) construct(datum, type.getValueType()));
+			// Cache the bean for looking up references later
+			if (!beanRepository.containsKey(bean.getClass())) {
+				beanRepository.put(bean.getClass(), new ArrayList<>());
+			}
+			beanRepository.get(bean.getClass()).add(bean);
+
+			// Set the properties
+			for (PropertyModel property : type.getProperties()) {
+				Object propertyData = data.get(property.getName());
+				if (propertyData == null) {
+					// Do nothing
+				} else if (property.isReferencedBy()) {
+					// Save the reference for assignment later
+					references.add(new Reference(bean, property.getName(), property.getType().getMainClass(),
+							property.getReferencedBy(), propertyData));
+				} else {
+					setValue(bean, property.getName(), construct(propertyData, property.getType()));
+				}
+			}
+
+			return bean;
 		}
 
-		return value;
-	}
-
-	protected <K, V> Map<K, V> constructMap(Map<String, Object> data, TypeModel type) {
-		log.info("Constructing %s", type);
-		Map<K, V> value = new HashMap<>();
-
-		for (Entry<String, Object> datum : data.entrySet()) {
-
+		@SuppressWarnings("unchecked")
+		protected Object construct(Object data, TypeModel type) {
+			if (type.isScalar()) {
+				// Property is a scalar
+				return constructScalar(data, type.getMainClass());
+			} else if (type.isList()) {
+				// Property is a list
+				return constructList((List<Object>) data, type);
+			} else if (type.isMap()) {
+				// Property is a map
+				return constructMap((Map<Object, Object>) data, type);
+			} else {
+				// Property is a bean
+				return constructBean((Map<Object, Object>) data, type);
+			}
 		}
 
-		return value;
+		protected Object constructScalar(Object data, Class<?> clazz) {
+			log.info("Constructing %s from %s", clazz.getSimpleName(), data.getClass().getSimpleName());
+			if (String.class.isAssignableFrom(clazz)) {
+				return "null".equals(data) ? null : data;
+			} else if (int.class.isAssignableFrom(clazz) || Integer.class.isAssignableFrom(clazz)) {
+				return data;
+			} else {
+				throw new LoadException("Unable to construct type: " + clazz);
+			}
+		}
+
+		protected List<Object> constructList(List<Object> data, TypeModel type) {
+			log.info("Constructing %s", type);
+			List<Object> value = new ArrayList<>();
+
+			for (Object datum : data) {
+				value.add(construct(datum, type.getValueType()));
+			}
+
+			return value;
+		}
+
+		protected Map<Object, Object> constructMap(Map<Object, Object> data, TypeModel type) {
+			log.info("Constructing %s", type);
+			Map<Object, Object> value = new HashMap<>();
+
+			for (Entry<Object, Object> datum : data.entrySet()) {
+				value.put(construct(datum.getKey(), type.getKeyType()),
+						construct(datum.getValue(), type.getValueType()));
+			}
+
+			return value;
+		}
+
+		protected void applyReferences() {
+			for (Reference reference : references) {
+				log.info("Applying %s", reference.toString());
+
+				// Find the reference value
+				Object referenceValue = null;
+
+				if (!beanRepository.containsKey(reference.getPropertyClass())) {
+					throw new LoadException(String.format("No %s references have been cached",
+							reference.getPropertyClass()));
+				}
+
+				for (Object bean : beanRepository.get(reference.getPropertyClass())) {
+					Object value = getValue(bean, reference.getReferenceName());
+
+					if (value != null && value.equals(reference.getReferenceValue())) {
+						referenceValue = bean;
+						break;
+					}
+				}
+
+				if (referenceValue == null) {
+					throw new LoadException("Could not find reference " + reference.toString());
+				}
+
+				// Set the reference value
+				setValue(reference.getBean(), reference.getPropertyName(), referenceValue);
+			}
+		}
+
+		protected void setValue(Object bean, String propertyName, Object propertyValue) {
+			try {
+				PropertyUtils.setProperty(bean, propertyName, propertyValue);
+			} catch (Exception e) {
+				throw new LoadException(String.format("Cannot set property %s.%s with value %s",
+						bean.getClass().getSimpleName(), propertyName, propertyName), e);
+			}
+		}
 	}
 
 	/**
@@ -113,13 +166,13 @@ public class YamlPersistor {
 	 * @return
 	 */
 	@SuppressWarnings("unchecked")
-	public Map<String, Object> compose(Handle handle) {
+	public Map<Object, Object> compose(Handle handle) {
 		InputStream inputStream = getClass().getClassLoader().getResourceAsStream(handle.getFilename());
 
 		try (InputStreamReader reader = new InputStreamReader(inputStream)) {
 			Yaml yaml = new Yaml();
 			for (Object document : yaml.loadAll(reader)) {
-				Map<String, Object> map = (Map<String, Object>) document;
+				Map<Object, Object> map = (Map<Object, Object>) document;
 				if (handle.getId().equals(map.get("id"))) {
 					return map;
 				}
@@ -171,8 +224,8 @@ public class YamlPersistor {
 	protected static Object getValue(Object object, String propertyName) {
 		try {
 			return object == null ? null : PropertyUtils.getProperty(object, propertyName);
-		} catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-			throw new CannotGetValueException(object, propertyName);
+		} catch (Exception e) {
+			throw new CannotGetValueException(object, propertyName, e);
 		}
 	}
 

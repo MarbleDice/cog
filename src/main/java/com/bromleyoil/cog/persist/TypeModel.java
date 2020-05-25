@@ -119,14 +119,23 @@ public class TypeModel {
 		return valueType != null && keyType != null;
 	}
 
+	/**
+	 * Gets the Java class represented by this model (Integer, Float, List, Map, etc).
+	 */
 	public Class<?> getMainClass() {
 		return mainClass;
 	}
 
+	/**
+	 * Gets the key type (for Maps).
+	 */
 	public TypeModel getKeyType() {
 		return keyType;
 	}
 
+	/**
+	 * Gets the value type (for Lists or Maps).
+	 */
 	public TypeModel getValueType() {
 		return valueType;
 	}

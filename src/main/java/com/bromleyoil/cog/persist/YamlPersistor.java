@@ -228,12 +228,13 @@ public class YamlPersistor {
 		TypeModel type = TypeModel.of(bean.getClass());
 		// Represent the properties
 		for (PropertyModel property : type.getProperties()) {
-			if (property.isReferencedBy()) {
-				// Value is represented by a certain property
-				map.put(property.getName(), getValue(getValue(bean, property.getName()), property.getReferencedBy()));
-			} else {
-				// Value should be represented as normal
-				map.put(property.getName(), represent(getValue(bean, property.getName())));
+			// ReferencedBy properties are represented by a sub-property (such as a State's name for nextState)
+			Object value = property.isReferencedBy()
+					? getValue(getValue(bean, property.getName()), property.getReferencedBy())
+					: represent(getValue(bean, property.getName()));
+
+			if (!property.isDefault(value)) {
+				map.put(property.getName(), value);
 			}
 		}
 

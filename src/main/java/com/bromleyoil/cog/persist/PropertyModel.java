@@ -20,6 +20,10 @@ public class PropertyModel {
 		this.typeModel = TypeModel.of(propertyDescriptor.getReadMethod().getGenericReturnType());
 	}
 
+	public boolean isDefault(Object value) {
+		return value == null;
+	}
+
 	@Override
 	public String toString() {
 		return getName();
@@ -37,6 +41,9 @@ public class PropertyModel {
 		return referencedBy.value();
 	}
 
+	/**
+	 * Gets the TypeModel of this Property.
+	 */
 	public TypeModel getType() {
 		return typeModel;
 	}

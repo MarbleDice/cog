@@ -5,7 +5,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
-import com.bromleyoil.cog.comparator.CompositeComparator;
 import com.bromleyoil.cog.persist.annotation.PropertyOrder;
 
 public class PropertyOrderComparator implements Comparator<PropertyModel> {
@@ -15,11 +14,9 @@ public class PropertyOrderComparator implements Comparator<PropertyModel> {
 
 	public PropertyOrderComparator(PropertyOrder propertyOrder) {
 		orderedProperties = propertyOrder == null ? new ArrayList<>() : Arrays.asList(propertyOrder.value());
-
-		comparator = new CompositeComparator<>(
-				Comparator.comparingInt(this::getFieldIndex),
-				Comparator.comparingInt(this::getFieldTypeOrder),
-				Comparator.comparing(PropertyModel::getName));
+		comparator = Comparator.comparingInt(this::getFieldIndex)
+				.thenComparingInt(this::getFieldTypeOrder)
+				.thenComparing(PropertyModel::getName);
 	}
 
 	public int getFieldIndex(PropertyModel property) {

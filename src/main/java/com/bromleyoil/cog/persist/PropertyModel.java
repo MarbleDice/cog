@@ -4,6 +4,10 @@ import java.beans.PropertyDescriptor;
 
 import com.bromleyoil.cog.persist.annotation.ReferencedBy;
 
+/**
+ * Describes a Java property.
+ *
+ */
 public class PropertyModel {
 
 	private PropertyDescriptor propertyDescriptor;

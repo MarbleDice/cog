@@ -7,10 +7,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 
 /**
- * Specifies the order of properties when presenting.
+ * Specifies the order of properties in a {@link PersistedBy} entity.
  * 
- * @author Billy
- *
  */
 @Target(TYPE)
 @Retention(RUNTIME)

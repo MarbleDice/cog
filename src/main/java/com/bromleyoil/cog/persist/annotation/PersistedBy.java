@@ -7,10 +7,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 
 /**
- * Specifies the property name to use for representing a persistable class.
+ * Indicates a persistable entity, and specifies the property used to reference it.
  * 
- * @author Billy
- *
  */
 @Target(TYPE)
 @Retention(RUNTIME)

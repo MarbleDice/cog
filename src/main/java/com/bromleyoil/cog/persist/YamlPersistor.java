@@ -18,6 +18,13 @@ public class YamlPersistor {
 
 	private static Logger log = new Logger();
 
+	/**
+	 * Constructs a Java object from a handle.
+	 * 
+	 * @param handle
+	 * @param clazz
+	 * @return
+	 */
 	public <T> T construct(Handle handle, Class<T> clazz) {
 		ConstructionContext context = new ConstructionContext();
 
@@ -35,7 +42,7 @@ public class YamlPersistor {
 		private List<Reference> references = new ArrayList<>();
 
 		protected Object constructBean(Map<Object, Object> data, TypeModel type) {
-			log.info("Constructing %s", type);
+			log.info("Constructing bean %s", type);
 
 			// Construct the bean
 			Object bean;
@@ -86,7 +93,7 @@ public class YamlPersistor {
 		}
 
 		protected Object constructScalar(Object data, Class<?> clazz) {
-			log.info("Constructing %s from %s", clazz.getSimpleName(), data.getClass().getSimpleName());
+			log.info("Constructing scalar %s from %s", clazz.getSimpleName(), data.getClass().getSimpleName());
 			if (String.class.isAssignableFrom(clazz)) {
 				return "null".equals(data) ? null : data;
 			} else if (int.class.isAssignableFrom(clazz) || Integer.class.isAssignableFrom(clazz)) {
@@ -184,11 +191,23 @@ public class YamlPersistor {
 		throw new LoadException("Unable to find " + handle);
 	}
 
+	/**
+	 * Presents a Java object as YAML text.
+	 * 
+	 * @param object
+	 * @return
+	 */
 	public static String present(Object object) {
 		Yaml yaml = new Yaml();
 		return yaml.dump(represent(object));
 	}
 
+	/**
+	 * Represents a Java object as a data composition.
+	 * 
+	 * @param object
+	 * @return
+	 */
 	@SuppressWarnings("unchecked")
 	public static Object represent(Object object) {
 		if (object == null || TypeModel.isScalar(object.getClass())) {
@@ -237,7 +256,7 @@ public class YamlPersistor {
 		return map.entrySet().stream()
 				.filter(e -> e.getValue() != null)
 				.collect(Collectors.toMap(
-						entry -> entry.getKey(),
+						Entry<Object, Object>::getKey,
 						entry -> represent(entry.getValue())));
 	}
 }

@@ -17,6 +17,10 @@ import org.apache.commons.beanutils.PropertyUtils;
 
 import com.bromleyoil.cog.persist.annotation.PropertyOrder;
 
+/**
+ * Describes a Java type.
+ *
+ */
 public class TypeModel {
 
 	private static Logger log = new Logger();
